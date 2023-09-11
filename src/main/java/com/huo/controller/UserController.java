@@ -7,12 +7,14 @@ import com.huo.service.UserService;
 import com.huo.utils.MailUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.mail.MessagingException;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import java.util.Map;
 
@@ -22,6 +24,8 @@ import java.util.Map;
 public class UserController {
     @Autowired
     private UserService userService;
+    @Autowired
+    RedisTemplate redisTemplate;
 
     @PostMapping("/sendMsg")
     public GeneralResult<String> sendMsg(@RequestBody User user, HttpSession session) throws MessagingException {
@@ -32,9 +36,12 @@ public class UserController {
             String code = MailUtils.achieveCode();
             log.info(code);
             //这里的phone其实就是邮箱，code是我们生成的验证码
-            MailUtils.sendTestMail(mail, code);
+//            MailUtils.sendTestMail(mail, code);TODO 暂时关闭方便测试
             //验证码存session，方便后面拿出来比对
-            session.setAttribute("mail", code);
+//            session.setAttribute("mail", code);
+
+//            将验证码存入redis
+            redisTemplate.opsForValue().set(mail,code);
             return GeneralResult.success("验证码发送成功");
         }
         return GeneralResult.error("验证码发送失败");
@@ -46,7 +53,9 @@ public class UserController {
        String mail = map.get("mail").toString();
        String code = map.get("code").toString();
 
-       String rightCode = session.getAttribute("mail").toString();
+//       String rightCode = session.getAttribute("mail").toString();
+
+        Object rightCode = redisTemplate.opsForValue().get(mail);
 
         if (code != null && code.equals(rightCode)){
             LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
@@ -59,9 +68,19 @@ public class UserController {
                 userService.save(user);
             }
             session.setAttribute("user",user.getId());
+
+//            若登录成功，删除记录
+            redisTemplate.delete(mail);
             return GeneralResult.success(user);
         }
 
         return GeneralResult.error("登录失败");
+    }
+
+
+    @PostMapping("/loginout")
+    public GeneralResult<String> logout(HttpServletRequest request){
+        request.getSession().removeAttribute("user");
+        return GeneralResult.success("退出成功");
     }
 }

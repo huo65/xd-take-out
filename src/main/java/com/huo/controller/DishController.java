@@ -13,9 +13,11 @@ import com.huo.service.DishService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +34,9 @@ public class DishController {
     @Autowired
     private CategoryService categoryService;
 
+    @Autowired
+    RedisTemplate redisTemplate;
+
     /**
      * 新增菜品
      * @param dishDto
@@ -39,6 +44,8 @@ public class DishController {
      */
     @PostMapping
     public GeneralResult<String> save(@RequestBody DishDto dishDto) {
+        String key = "dish_" + dishDto.getCategoryId() +"_"+ dishDto.getStatus();
+        redisTemplate.delete(key);
         log.info(dishDto.toString());
         dishService.saveWithFlavor(dishDto);
         return GeneralResult.success("新增菜品成功");
@@ -100,6 +107,8 @@ public class DishController {
      */
     @PutMapping
     public GeneralResult<String> update(@RequestBody DishDto dishDto) {
+        String key = "dish_" + dishDto.getCategoryId() +"_"+ dishDto.getStatus();
+        redisTemplate.delete(key);
         log.info(dishDto.toString());
         dishService.updateWithFlavor(dishDto);
         return GeneralResult.success("新增菜品成功");
@@ -112,6 +121,13 @@ public class DishController {
      */
     @GetMapping("/list")
     public GeneralResult<List<DishDto>> list (Dish dish) {
+
+//        动态构造key
+        String key = "dish_" + dish.getCategoryId() +"_"+ dish.getStatus();
+        List<DishDto>  dishDtoListCache= (List<DishDto>) redisTemplate.opsForValue().get(key);
+        if (dishDtoListCache != null){
+            return GeneralResult.success(dishDtoListCache);
+        }
 //        构造查询条件
         LambdaQueryWrapper<Dish> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(dish.getCategoryId() != null,Dish::getCategoryId,dish.getCategoryId());
@@ -138,6 +154,7 @@ public class DishController {
             return dishDto;
         }) .collect(Collectors.toList());
 
+        redisTemplate.opsForValue().set(key,dishDtoList,60, TimeUnit.MINUTES);
 
         return GeneralResult.success(dishDtoList);
     }

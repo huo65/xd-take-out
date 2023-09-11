@@ -3,6 +3,7 @@ package com.huo.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.huo.common.BaseContext;
+import com.huo.common.CustomException;
 import com.huo.common.GeneralResult;
 import com.huo.entity.AddressBook;
 import com.huo.service.AddressBookService;
@@ -89,4 +90,34 @@ public class AddressBookController {
             return GeneralResult.success(addressBook);
         }
      }
+
+    @GetMapping("/{id}")
+    public GeneralResult<AddressBook> getById(@PathVariable Long id) {
+        AddressBook addressBook = addressBookService.getById(id);
+        if (addressBook == null){
+            throw new CustomException("地址信息不存在");
+        }
+        return GeneralResult.success(addressBook);
+    }
+    @PutMapping
+    public GeneralResult<String> updateAdd(@RequestBody AddressBook addressBook) {
+        if (addressBook == null) {
+            throw new CustomException("地址信息不存在，请刷新重试");
+        }
+        addressBookService.updateById(addressBook);
+        return GeneralResult.success("地址修改成功");
+    }
+
+    @DeleteMapping()
+    public GeneralResult<String> deleteAdd(@RequestParam("ids") Long id) {
+        if (id == null) {
+            throw new CustomException("地址信息不存在，请刷新重试");
+        }
+        AddressBook addressBook = addressBookService.getById(id);
+        if (addressBook == null) {
+            throw new CustomException("地址信息不存在，请刷新重试");
+        }
+        addressBookService.removeById(id);
+        return GeneralResult.success("地址删除成功");
+    }
 }
